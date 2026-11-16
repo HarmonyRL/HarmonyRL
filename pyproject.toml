@@ -1,0 +1,69 @@
+[project]
+name = "harmonyrl"
+version = "0.1.0"
+description = "Melody harmonization with reinforcement learning"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "CloudHolic", email = "cloudholic@pm.me" }]
+requires-python = ">=3.14"
+keywords = [
+	"music",
+	"harmonization",
+	"chord-progression",
+	"reinforcement-learning",
+]
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Intended Audience :: Science/Research",
+	"Topic :: Multimedia :: Sound/Audio",
+	"Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+	"huggingface-hub>=2.4.0",
+	"music21>=10.5.2",
+	"numpy>=2.5.5",
+	"pretty-midi>=0.2.11.post0",
+	"safetensors>=0.8.0",
+	"torch>=2.15.0",
+]
+
+[project.urls]
+Repository = "https://github.com/HarmonyRL/HarmonyRL"
+
+[dependency-groups]
+dev = ["ruff>=0.17.5", "ty>=0.0.104"]
+
+[build-system]
+requires = ["hatchling>=1.33.0"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+indent-style = "tab"
+quote-style = "double"
+
+[tool.ruff.lint]
+select = [
+	"E",
+	"F",
+	"I",
+	"A",
+	"B",
+	"C4",
+	"N",
+	"NPY",
+	"PIE",
+	"RET",
+	"RUF",
+	"SIM",
+	"UP",
+]
+
+[[tool.ty.overrides]]
+include = ["src/harmonyrl/models"]
+
+[tool.ty.overrides.rules]
+invalid-mutable-override = "ignore"

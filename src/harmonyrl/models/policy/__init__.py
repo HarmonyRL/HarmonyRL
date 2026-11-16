@@ -1,7 +1,6 @@
-"""Chord policy: the network, its configuration, and teacher-forced pretraining."""
+"""Chord policy: the network and its generation settings."""
 
 from .generation import GenerationConfig
-from .model import ChordPolicy, PolicyConfig
-from .pretrain import PolicyTrainer, PretrainArguments
+from .model import ChordPolicy
 
-__all__ = ["ChordPolicy", "GenerationConfig", "PolicyConfig", "PolicyTrainer", "PretrainArguments"]
+__all__ = ["ChordPolicy", "GenerationConfig"]

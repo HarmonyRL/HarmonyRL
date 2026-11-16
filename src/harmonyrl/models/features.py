@@ -12,7 +12,6 @@ from harmonyrl.schema import (
 	Melody,
 	Mode,
 	Section,
-	Segment,
 	allowed,
 	no_chord_limit,
 	project,
@@ -120,24 +119,10 @@ class EventTargets:
 	masks: dict[str, np.ndarray]
 
 
-def event_targets(segment: Segment, *, restrict_no_chord: bool = False) -> EventTargets:
-	"""Targets of the projected chords of `segment`.
-
-	With `restrict_no_chord`, no chord is allowed only as the 1st event, within the
-	`no_chord_limit` of the melody. Raises ValueError if a target falls outside its mask,
-	which means the segment breaks the contract.
-	"""
-	try:
-		return prefix_targets(segment.melody, segment.events, restrict_no_chord=restrict_no_chord)
-	except ValueError as error:
-		raise ValueError(f"{segment.id}: {error}") from error
-
-
 def prefix_targets(
 	melody: Melody, events: Sequence[ChordEvent], *, restrict_no_chord: bool = False
 ) -> EventTargets:
-	"""Targets of `events`, the opening events of a harmonization of `melody`, as `event_targets`
-	builds them."""
+	"""Targets of `events`, the opening events of a harmonization of `melody`."""
 	heads = tuple(HEAD_VALUES)
 	count = len(events)
 	starts = np.zeros(count, dtype=np.int64)

@@ -1,4 +1,4 @@
-"""Batches of segments as padded tensors, grouped by length."""
+"""Batches of segments as padded tensors."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass, fields, replace
@@ -33,7 +33,7 @@ class Batch:
 	masks: dict[str, torch.Tensor]
 	event_mask: torch.Tensor
 
-	def to(self, device: torch.device | str) -> Batch:
+	def to(self, device: torch.device | str) -> "Batch":
 		"""The same batch on `device`."""
 		moved: dict[str, object] = {}
 		for field in fields(self):
@@ -75,24 +75,3 @@ def collate(items: Sequence[tuple[MelodyFeatures, EventTargets]]) -> Batch:
 		masks={head: _pad([t.masks[head] for t in targets], True) for head in HEAD_VALUES},
 		event_mask=_pad([np.ones(len(t.starts), dtype=bool) for t in targets]),
 	)
-
-
-def length_batches(
-	lengths: Sequence[int], max_frames: int, rng: np.random.Generator
-) -> list[list[int]]:
-	"""Indices grouped so that each batch pads to at most `max_frames` frames, in random order."""
-	batches: list[list[int]] = []
-	current: list[int] = []
-	order = np.lexsort((rng.random(len(lengths)), np.asarray(lengths)))
-
-	for index in order.tolist():
-		if current and lengths[index] * (len(current) + 1) > max_frames:
-			batches.append(current)
-			current = []
-		current.append(index)
-
-	if current:
-		batches.append(current)
-
-	rng.shuffle(batches)
-	return batches

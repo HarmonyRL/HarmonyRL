@@ -9,41 +9,13 @@ import pretty_midi
 from harmonyrl.schema import Key, KeySpan, LeadSheet, Meter, Mode, Note, SheetPart
 
 from .common import (
-	ImportedMelody,
 	SheetImport,
-	bar_ceiling,
 	beat_tempo_from_quarter,
 	build_melody,
 	estimate_key,
 	meter_from_ratio,
 	snap,
 )
-
-
-def melody_from_midi(
-	path: Path,
-	*,
-	track: int | None = None,
-	meter: Meter | None = None,
-	key: Key | None = None,
-) -> ImportedMelody:
-	"""Read a monophonic melody from a MIDI file."""
-	midi = pretty_midi.PrettyMIDI(str(path))
-	instrument = _select_track(midi, track)
-	resolved_meter = meter or _meter_from_file(midi)
-	tempo = _tempo(midi, resolved_meter)
-	notes = _track_notes(midi, instrument)
-
-	end = max((note.offset for note in notes), default=Fraction(0))
-	length = max(1, bar_ceiling(end, resolved_meter.bar_eighths))
-	declared = _declared_key(midi)
-	signature_tonic = None if declared is None else declared.tonic
-	resolved_key = (
-		key if key is not None else estimate_key(tuple(notes), signature_tonic=signature_tonic)
-	)
-	melody = build_melody(notes, resolved_meter, (KeySpan(0, resolved_key),), length, tempo=tempo)
-
-	return ImportedMelody(melody=melody, declared_key=declared)
 
 
 def lead_sheet_from_midi(
@@ -184,23 +156,3 @@ def _melody_score(instrument: pretty_midi.Instrument) -> float:
 	height = (top_line - 36) / max(1, ceiling - 36) if ceiling > 36 else 0.5
 
 	return len(onsets) * (1.0 - polyphonic) * (0.25 + height)
-
-
-def _meter_from_file(midi: pretty_midi.PrettyMIDI) -> Meter:
-	signatures = midi.time_signature_changes
-	if not signatures:
-		raise ValueError("no time signature in MIDI; pass meter=")
-
-	distinct = list(dict.fromkeys((s.numerator, s.denominator) for s in signatures))
-	if len(distinct) > 1:
-		raise ValueError("time signature changes in MIDI; split the song and pass meter=")
-
-	numerator, denominator = distinct[0]
-	return meter_from_ratio(numerator, denominator)
-
-
-def _tempo(midi: pretty_midi.PrettyMIDI, meter: Meter) -> int | None:
-	tempos = midi.get_tempo_changes()[1]
-	if not len(tempos):
-		return None
-	return beat_tempo_from_quarter(float(tempos[0]), meter)

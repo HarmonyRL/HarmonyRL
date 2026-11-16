@@ -24,9 +24,7 @@ from harmonyrl.schema import (
 
 from .chords import chord_from_symbol
 from .common import (
-	ImportedMelody,
 	SheetImport,
-	bar_ceiling,
 	beat_tempo_from_quarter,
 	build_melody,
 	estimate_key,
@@ -38,34 +36,6 @@ _REPEATS = (music21.bar.Repeat, music21.repeat.RepeatExpression)
 
 _PLACEHOLDER_TITLE = (DEFAULT_TITLE, "Music21 Fragment")
 """Titles that stand for none."""
-
-
-def melody_from_musicxml(
-	path: Path,
-	*,
-	part: int | None = None,
-	meter: Meter | None = None,
-	key: Key | None = None,
-) -> ImportedMelody:
-	"""Read a monophonic melody from a MusicXML file."""
-	score = music21.converter.parse(str(path))
-	voice = _select_part(score, part)
-
-	resolved_meter = meter or _meter_from_score(score, voice)
-	tempo = _tempo_from_score(score, resolved_meter)
-	notes = _voice_notes(voice, _pickup_eighths(voice))
-
-	declared = _declared_key(score, voice)
-	end = max((note.offset for note in notes), default=Fraction(0))
-	length = max(1, bar_ceiling(end, resolved_meter.bar_eighths))
-
-	signature_tonic = None if declared is None else declared.tonic
-	resolved_key = (
-		key if key is not None else estimate_key(tuple(notes), signature_tonic=signature_tonic)
-	)
-	melody = build_melody(notes, resolved_meter, (KeySpan(0, resolved_key),), length, tempo=tempo)
-
-	return ImportedMelody(melody=melody, declared_key=declared)
 
 
 def lead_sheet_from_musicxml(
@@ -304,30 +274,6 @@ def _select_part(score: music21.stream.Stream, part: int | None) -> music21.stre
 		return (sum(pitches) / len(pitches) if pitches else 0.0, len(pitches))
 
 	return max(parts, key=melody_key)
-
-
-def _meter_from_score(score: music21.stream.Stream, voice: music21.stream.Stream) -> Meter:
-	signatures = list(voice.recurse().getElementsByClass(music21.meter.TimeSignature))
-	if not signatures:
-		signatures = list(score.recurse().getElementsByClass(music21.meter.TimeSignature))
-	if not signatures:
-		raise ValueError("no time signature in MusicXML; pass meter=")
-
-	distinct = list(dict.fromkeys((s.numerator, s.denominator) for s in signatures))
-	if len(distinct) > 1:
-		raise ValueError("time signature changes in MusicXML; split the song and pass meter=")
-
-	numerator, denominator = distinct[0]
-	return meter_from_ratio(numerator, denominator)
-
-
-def _tempo_from_score(score: music21.stream.Stream, meter: Meter) -> int | None:
-	for mark in score.recurse().getElementsByClass(music21.tempo.MetronomeMark):
-		quarter_bpm = mark.getQuarterBPM()
-		if quarter_bpm is not None and quarter_bpm > 0:
-			return beat_tempo_from_quarter(float(quarter_bpm), meter)
-
-	return None
 
 
 def _declared_key(score: music21.stream.Stream, voice: music21.stream.Stream) -> Key | None:

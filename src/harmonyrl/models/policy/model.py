@@ -246,7 +246,7 @@ class ChordPolicy(nn.Module, StrictModelHubMixin, license="cc-by-nc-sa-3.0"):
 		order = sorted(range(len(melodies)), key=lambda i: melodies[i].length)
 		results: list[tuple[ChordEvent, ...]] = [() for _ in melodies]
 
-		for chunk in batched(order, batch_size, strict=False):
+		for chunk in batched(order, batch_size):
 			outputs = self._generate_batch(
 				[melodies[i] for i in chunk],
 				[prefixes[i] for i in chunk],

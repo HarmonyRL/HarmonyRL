@@ -1,4 +1,4 @@
-"""Melodies and annotated segments, timed in 8th notes from a barline at position 0."""
+"""Melodies and their parts, timed in 8th notes from a barline at position 0."""
 
 import re
 from bisect import bisect_right
@@ -48,7 +48,7 @@ class Note:
 
 
 class Section(StrEnum):
-	"""Song section of a segment."""
+	"""Song section of a melody."""
 
 	INTRO = "intro"
 	VERSE = "verse"
@@ -81,14 +81,6 @@ def section_from_label(label: str) -> Section | None:
 	"""
 	first = label.split(" and ")[0]
 	return _SECTION_LABELS.get(re.sub(r"\s+\d+$", "", first).strip().lower())
-
-
-class Split(StrEnum):
-	"""Dataset split, assigned by artist in the source data."""
-
-	TRAIN = "train"
-	VALID = "valid"
-	TEST = "test"
 
 
 @dataclass(frozen=True)
@@ -126,29 +118,6 @@ class Melody:
 		"""Key in effect at `position` 8th notes."""
 		index = bisect_right([span.start for span in self.keys], position) - 1
 		return self.keys[index].key
-
-
-@dataclass(frozen=True)
-class Segment:
-	"""A melody with its human accompaniment, the unit of the dataset.
-
-	`events` tile the melody: their durations sum to its length, and no-chord events are merged.
-	"""
-
-	id: str
-	split: Split
-	melody: Melody
-	events: tuple[ChordEvent, ...]
-
-	def __post_init__(self) -> None:
-		total = sum(event.duration for event in self.events)
-		if total != self.melody.length:
-			raise ValueError(
-				f"event durations sum to {total}, melody length is {self.melody.length}"
-			)
-
-		if any(a.chord is None and b.chord is None for a, b in pairwise(self.events)):
-			raise ValueError("consecutive no-chord events must be merged")
 
 
 def merge_repeats(events: Sequence[ChordEvent], melody: Melody) -> tuple[ChordEvent, ...]:

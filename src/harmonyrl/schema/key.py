@@ -1,9 +1,7 @@
 """Modes and keys. Scales are 7 semitone offsets from the tonic."""
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from itertools import accumulate
 
 
 class Mode(StrEnum):
@@ -36,16 +34,6 @@ _SCALES: dict[Mode, tuple[int, ...]] = {
 	Mode.HARMONIC_MINOR: (0, 2, 3, 5, 7, 8, 11),
 	Mode.PHRYGIAN_DOMINANT: (0, 1, 4, 5, 7, 8, 10),
 }
-
-
-def mode_from_intervals(intervals: Sequence[int]) -> Mode:
-	"""Mode whose scale has the given 6 steps between consecutive degrees."""
-	scale = (0, *accumulate(intervals))
-	for mode in Mode:
-		if mode.scale == scale:
-			return mode
-
-	raise ValueError(f"No mode has scale steps {list(intervals)}")
 
 
 @dataclass(frozen=True)

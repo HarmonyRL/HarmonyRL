@@ -1,7 +1,5 @@
-"""Writing a lead sheet, its parts joined, to any supported file."""
+"""Writing a lead sheet, its parts joined, to MusicXML or MIDI."""
 
-import shutil
-import tempfile
 from fractions import Fraction
 from pathlib import Path
 
@@ -10,41 +8,20 @@ import pretty_midi
 
 from harmonyrl.schema import Key, LeadSheet, Meter
 
-from .audio import midi_to_wav, wav_to_mp3
-from .convert import musicxml_to_formats
 from .midi import DEFAULT_TEMPO, TICKS_PER_QUARTERBEAT
 from .score import melody_to_score, write_score
 from .symbol import midi_key_number
 from .voicing import chord_notes, melody_notes
 
 
-def write_lead_sheet(
-	sheet: LeadSheet, path: Path, *, mscore: Path | None = None, soundfont: Path | None = None
-) -> None:
-	"""Write `sheet` as a score, MIDI, or recording, chosen by file suffix."""
+def write_lead_sheet(sheet: LeadSheet, path: Path) -> None:
+	"""Write `sheet` as MusicXMl or MIDI, chosen by file suffix."""
 	suffix = path.suffix.lower()
 
 	if suffix in (".musicxml", ".xml"):
 		write_score(_score(sheet), path)
-	elif suffix in (".mscz", ".mscx", ".pdf"):
-		with tempfile.TemporaryDirectory() as tmp:
-			musicxml = Path(tmp) / "sheet.musicxml"
-			write_score(_score(sheet), musicxml)
-			musicxml_to_formats(musicxml, [path], mscore or _mscore())
 	elif suffix in (".mid", ".midi"):
 		_write_midi(sheet, path)
-	elif suffix in (".wav", ".mp3"):
-		if soundfont is None:
-			raise ValueError("writing audio needs soundfont=")
-		with tempfile.TemporaryDirectory() as tmp:
-			midi = Path(tmp) / "sheet.mid"
-			_write_midi(sheet, midi)
-
-			wav = path if suffix == ".wav" else Path(tmp) / "sheet.wav"
-			midi_to_wav(midi, wav, soundfont)
-
-			if suffix == ".mp3":
-				wav_to_mp3(wav, path)
 	else:
 		raise ValueError(f"unsupported file type {suffix!r}")
 
@@ -155,10 +132,3 @@ def _write_midi(sheet: LeadSheet, path: Path) -> None:
 
 	midi.instruments.extend(instruments.values())
 	midi.write(str(path))
-
-
-def _mscore() -> Path:
-	found = shutil.which("mscore")
-	if found is None:
-		raise ValueError("MuseScore (mscore) is not on PATH; pass mscore=")
-	return Path(found)

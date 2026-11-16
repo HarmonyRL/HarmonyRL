@@ -1,4 +1,4 @@
-"""Fixed voicing of chord events for audio rendering."""
+"""Fixed voicing of chord events for MIDI rendering."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass

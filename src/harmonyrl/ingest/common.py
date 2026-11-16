@@ -2,20 +2,11 @@
 
 from dataclasses import dataclass
 from fractions import Fraction
-from math import ceil
 
 from harmonyrl.schema import Key, KeySpan, LeadSheet, Melody, Meter, Mode, Note
 
 SNAP = Fraction(1, 48)
 """Quantization grid in 8th notes: 1/6 of a 16th, so triplets and quintuplets are exact."""
-
-
-@dataclass(frozen=True)
-class ImportedMelody:
-	"""An imported melody with the key signature the file declared (None when absent)."""
-
-	melody: Melody
-	declared_key: Key | None = None
 
 
 @dataclass(frozen=True)
@@ -35,13 +26,6 @@ def snap(value: Fraction) -> Fraction:
 	return Fraction(round(value / SNAP), 48)
 
 
-def bar_ceiling(end: Fraction, bar_eighths: int) -> int:
-	"""Length in 8th notes covering `end` up to the end of its bar."""
-	if end <= 0:
-		return 0
-	return ceil(end / bar_eighths) * bar_eighths
-
-
 def meter_from_ratio(numerator: int, denominator: int) -> Meter:
 	"""Convert a written time signature into a contract `Meter` with the same bar length.
 
@@ -56,20 +40,13 @@ def meter_from_ratio(numerator: int, denominator: int) -> Meter:
 	if denominator == 16 and numerator % 2 == 0:
 		return Meter(numerator // 2, 8)
 
-	raise ValueError(f"unsupported time signature {numerator}/{denominator}; pass meter=")
+	raise ValueError(f"unsupported time signature {numerator}/{denominator}")
 
 
 def beat_tempo_from_quarter(quarter_bpm: float, meter: Meter) -> int:
 	"""Convert quarter-note BPM into the contract's beat tempo (dotted quarter for x/8)."""
 	bpm = quarter_bpm * 2 / 3 if meter.beat_unit == 8 else quarter_bpm
 	return max(1, round(bpm))
-
-
-def eighth_seconds(tempo: int, meter: Meter) -> Fraction:
-	"""Duration of one 8th note in seconds for `tempo` (dotted-quarter BPM on x/8)."""
-	if tempo < 1:
-		raise ValueError(f"tempo must be positive, got {tempo}")
-	return Fraction(20, tempo) if meter.beat_unit == 8 else Fraction(30, tempo)
 
 
 def build_melody(

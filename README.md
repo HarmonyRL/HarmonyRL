@@ -1,5 +1,7 @@
 # HarmonyRL
 
+English | [한국어](https://github.com/HarmonyRL/HarmonyRL/blob/main/README.ko.md)
+
 Chord progressions for a melody. HarmonyRL reads a lead sheet from MusicXML or MIDI, writes
 chords under the melody, and can redraw only the bars you choose while keeping the rest.
 

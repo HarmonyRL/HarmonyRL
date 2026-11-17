@@ -15,7 +15,7 @@ from .voicing import chord_notes, melody_notes
 
 
 def write_lead_sheet(sheet: LeadSheet, path: Path) -> None:
-	"""Write `sheet` as MusicXMl or MIDI, chosen by file suffix."""
+	"""Write `sheet` as MusicXML or MIDI, chosen by file suffix."""
 	suffix = path.suffix.lower()
 
 	if suffix in (".musicxml", ".xml"):

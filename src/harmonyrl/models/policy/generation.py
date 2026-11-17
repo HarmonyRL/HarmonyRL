@@ -17,6 +17,7 @@ class GenerationConfig:
 
 	temperature: float = 1.0
 	pool: int = 8
+	max_duplicates: int = 1
 
 	def __post_init__(self) -> None:
 		if self.temperature <= 0:
@@ -24,6 +25,9 @@ class GenerationConfig:
 
 		if self.pool < 1:
 			raise ValueError(f"pool must be at least 1, got {self.pool}")
+
+		if self.max_duplicates < 1:
+			raise ValueError(f"max_duplicates must be at least 1, got {self.max_duplicates}")
 
 	def save_pretrained(self, directory: str | Path) -> None:
 		"""Write the settings into `directory` as generation_config.json."""

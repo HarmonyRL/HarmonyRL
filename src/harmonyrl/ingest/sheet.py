@@ -15,7 +15,7 @@ def read_lead_sheet(
 	part: int | None = None,
 	key: Key | None = None,
 ) -> SheetImport:
-	"""Read the lead sheet of a score, MIDI, or monophonic recording, chosen by file suffix."""
+	"""Read the lead sheet of a score or MIDI, chosen by file suffix."""
 	suffix = path.suffix.lower()
 
 	if suffix in (".musicxml", ".mxl", ".xml"):

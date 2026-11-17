@@ -1,11 +1,10 @@
 """Harmonizing a melody, or filling chosen bars between chords that are kept."""
 
 import random
-from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Hashable, Sequence
 from dataclasses import replace
 from fractions import Fraction
-from math import ceil, log
+from math import ceil
 from pathlib import Path
 from typing import Any, Self
 
@@ -34,6 +33,9 @@ from harmonyrl.schema import (
 
 MAX_BARS = 32
 """Most bars 1 call harmonizes."""
+
+MAX_CANDIDATES = 16
+"""Most candidates 1 call returns."""
 
 MAX_OVERLAP = 8
 """Most bars of chords already chosen that a window of a long part repeats as context."""
@@ -72,52 +74,36 @@ class HarmonyRL:
 		seed: int | None = None,
 		**overrides: Any,
 	) -> list[tuple[ChordEvent, ...]]:
+		"""Up to `candidates` harmonizations of `melody`, whole or only `bars` within `chords`."""
 		config = replace(self.generation_config, **overrides)
-		_check_length(melody)
-		if candidates < 1:
-			raise ValueError(f"candidates must be at least 1, got {candidates}")
+		HarmonyRL._check_length(melody)
+		HarmonyRL._check_candidates(candidates)
 
 		device = next(self.policy.parameters()).device
 		generator = None if seed is None else torch.Generator(device).manual_seed(seed)
 
 		if chords is None:
-			drafts = self.policy.generate(
-				[melody] * candidates, temperature=config.temperature, generator=generator
-			)
 
-			return list(dict.fromkeys(merge_repeats(draft, melody) for draft in drafts))
+			def draw_whole(count: int) -> list[tuple[ChordEvent, ...]]:
+				drafts = self.policy.generate(
+					[melody] * count, temperature=config.temperature, generator=generator
+				)
+				return [merge_repeats(draft, melody) for draft in drafts]
+
+			return _distinct(draw_whole, candidates, config.max_duplicates)
 
 		chords = tuple(chords)
 		self._check_chords(melody, chords)
 		start, stop = _bar_span(melody, bars)
 		before, after = _cut(chords, 0, start), _cut(chords, stop, melody.length)
 
-		pool = candidates * config.pool
-		drafts = self.policy.generate(
-			[melody] * pool,
-			prefixes=[before] * pool,
-			temperature=config.temperature,
-			generator=generator,
-		)
-		counts = Counter(_cut(draft, start, stop) for draft in drafts)
-		middles = list(counts)
-		weights = torch.tensor([log(counts[middle]) for middle in middles], device=device)
+		def draw_bars(count: int) -> list[tuple[ChordEvent, ...]]:
+			middles = self._refill(melody, before, after, start, stop, count, config, generator)
+			return [merge_repeats(before + middle + after, melody) for middle in middles]
 
-		# The policy reads left to right, so the chords after the bars weigh each draft instead.
-		if after:
-			weights += self._log_probs(melody, [before + middle + after for middle in middles])
-			weights -= self._log_probs(melody, [before + middle for middle in middles])
-
-		picks = torch.multinomial(
-			weights.softmax(0), min(candidates, len(middles)), generator=generator
-		)
-		results = list(
-			dict.fromkeys(
-				merge_repeats(before + middles[i] + after, melody) for i in picks.tolist()
-			)
-		)
-
+		results = _distinct(draw_bars, candidates, config.max_duplicates)
 		kept = _sounding(melody, chords)
+
 		for events in results:
 			sounding = _sounding(melody, events)
 			if sounding[:start] != kept[:start] or sounding[stop:] != kept[stop:]:
@@ -137,8 +123,9 @@ class HarmonyRL:
 	) -> list[LeadSheet]:
 		"""Up to `candidates` different harmonizations of `sheet`, whole or only `bars`, which
 		count across its parts from 0."""
-		if candidates < 1:
-			raise ValueError(f"candidates must be at least 1, got {candidates}")
+		config = replace(self.generation_config, **overrides)
+		HarmonyRL._check_candidates(candidates)
+
 		if not 0 <= overlap <= MAX_OVERLAP:
 			raise ValueError(f"overlap must be 0-{MAX_OVERLAP}, got {overlap}")
 
@@ -148,31 +135,53 @@ class HarmonyRL:
 				f"bars must be a nonempty range with step 1 within 0..{sum(counts)}, got {bars}"
 			)
 
-		results: list[LeadSheet] = []
-		for index in range(candidates):
-			draws = random.Random(f"{seed}/{index}") if seed is not None else None
-			parts: list[SheetPart] = []
-			first = 0
+		attempts = 0
 
-			for part, count in zip(sheet.parts, counts, strict=True):
-				low, high = (0, count) if bars is None else (bars.start - first, bars.stop - first)
-				low, high = max(low, 0), min(high, count)
-				if low >= high:
-					parts.append(part)
-				else:
-					chords = None if bars is None else part.chords
-					if chords is None and (low, high) != (0, count):
-						raise ValueError(
-							f"the part at bars {first}-{first + count - 1} has no chords to keep, "
-							"so it can only be filled whole"
-						)
-					filled = self._fill(part.melody, chords, low, high, overlap, draws, overrides)
-					parts.append(SheetPart(part.melody, filled))
-				first += count
+		def draw(count: int) -> list[LeadSheet]:
+			nonlocal attempts
+			drawn = []
+			for index in range(attempts, attempts + count):
+				draws = random.Random(f"{seed}/{index}") if seed is not None else None
+				drawn.append(self._attempt(sheet, counts, bars, overlap, draws, overrides))
 
-			results.append(replace(sheet, parts=tuple(parts)))
+			attempts += count
+			return drawn
 
-		return list(dict.fromkeys(results))
+		return _distinct(draw, candidates, config.max_duplicates)
+
+	def _attempt(
+		self,
+		sheet: LeadSheet,
+		counts: list[int],
+		bars: range | None,
+		overlap: int,
+		draws: random.Random | None,
+		overrides: dict[str, Any],
+	) -> LeadSheet:
+		"""1 harmonization of `sheet`, whole or only `bars`."""
+		parts: list[SheetPart] = []
+		first = 0
+
+		for part, count in zip(sheet.parts, counts, strict=True):
+			low, high = (0, count) if bars is None else (bars.start - first, bars.stop - first)
+			low, high = max(low, 0), min(high, count)
+
+			if low >= high:
+				parts.append(part)
+			else:
+				chords = None if bars is None else part.chords
+				if chords is None and (low, high) != (0, count):
+					raise ValueError(
+						f"the part at bars {first}-{first + count - 1} has no chords to keep, "
+						"so it can only be filled whole"
+					)
+
+				filled = self._fill(part.melody, chords, low, high, overlap, draws, overrides)
+				parts.append(SheetPart(part.melody, filled))
+
+			first += count
+
+		return replace(sheet, parts=tuple(parts))
 
 	def _fill(
 		self,
@@ -214,6 +223,42 @@ class HarmonyRL:
 
 		return merge_repeats(current, melody)
 
+	def _refill(
+		self,
+		melody: Melody,
+		before: tuple[ChordEvent, ...],
+		after: tuple[ChordEvent, ...],
+		start: int,
+		stop: int,
+		count: int,
+		config: GenerationConfig,
+		generator: torch.Generator | None,
+	) -> list[tuple[ChordEvent, ...]]:
+		"""`count` drafts of the chords from `start` to `stop`, each picked from its own pool."""
+		size = count * config.pool
+		drafts = self.policy.generate(
+			[melody] * size,
+			prefixes=[before] * size,
+			temperature=config.temperature,
+			generator=generator,
+		)
+		middles = [_cut(draft, start, stop) for draft in drafts]
+		weights = torch.zeros(size, device=next(self.policy.parameters()).device)
+
+		# The policy reads left to right, so the chords after the bars weigh each draft instead.
+		if after:
+			distinct = list(dict.fromkeys(middles))
+			fit = self._log_probs(melody, [before + middle + after for middle in distinct])
+			fit -= self._log_probs(melody, [before + middle for middle in distinct])
+			index = {middle: i for i, middle in enumerate(distinct)}
+			weights = fit[[index[middle] for middle in middles]]
+
+		picks = torch.multinomial(
+			weights.view(count, config.pool).softmax(1), 1, generator=generator
+		).squeeze(1)
+
+		return [middles[row * config.pool + pick] for row, pick in enumerate(picks.tolist())]
+
 	def _check_chords(self, melody: Melody, chords: tuple[ChordEvent, ...]) -> None:
 		if sum(event.duration for event in chords) != melody.length:
 			raise ValueError(f"chords must cover the melody's {melody.length} 8th notes exactly")
@@ -223,20 +268,48 @@ class HarmonyRL:
 		except ValueError as error:
 			raise ValueError(f"chords the policy cannot follow: {error}") from error
 
+	@staticmethod
+	def _check_length(melody: Melody) -> None:
+		bars = ceil(melody.length / melody.meter.bar_eighths)
+		if bars > MAX_BARS:
+			raise ValueError(f"the melody has {bars} bars, more than {MAX_BARS}")
+
+	@staticmethod
+	def _check_candidates(candidates: int) -> None:
+		if not 1 <= candidates <= MAX_CANDIDATES:
+			raise ValueError(f"candidates must be 1-{MAX_CANDIDATES}, got {candidates}")
+
 	@torch.no_grad()
 	def _log_probs(
-		self, melody: Melody, harmoniozations: Sequence[tuple[ChordEvent, ...]]
+		self, melody: Melody, harmonizations: Sequence[tuple[ChordEvent, ...]]
 	) -> torch.Tensor:
 		features = melody_features(melody)
 		restrict = self.policy.config.restrict_no_chord
 		batch = collate(
 			[
 				(features, prefix_targets(melody, h, restrict_no_chord=restrict))
-				for h in harmoniozations
+				for h in harmonizations
 			]
 		)
 		device = next(self.policy.parameters()).device
 		return self.policy(batch.to(device)).log_prob.sum(dim=1)
+
+
+def _distinct[T: Hashable](
+	draw: Callable[[int], list[T]], candidates: int, max_duplicates: int
+) -> list[T]:
+	"""Results of `draw` until `candidates` differ or `max_duplicates` repeat earlier ones."""
+	found: dict[T, None] = {}
+	duplicates = 0
+
+	while len(found) < candidates and duplicates < max_duplicates:
+		for result in draw(candidates - len(found)):
+			if result in found:
+				duplicates += 1
+			else:
+				found[result] = None
+
+	return list(found)
 
 
 def _bar_count(melody: Melody) -> int:
@@ -268,12 +341,6 @@ def _slice(melody: Melody, start: int, end: int) -> Melody:
 	)
 
 	return replace(melody, notes=notes, keys=keys, length=end - start)
-
-
-def _check_length(melody: Melody) -> None:
-	bars = ceil(melody.length / melody.meter.bar_eighths)
-	if bars > MAX_BARS:
-		raise ValueError(f"the melody has {bars} bars, more than {MAX_BARS}")
 
 
 def _bar_span(melody: Melody, bars: range | None) -> tuple[int, int]:

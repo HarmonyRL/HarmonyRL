@@ -1,6 +1,6 @@
 [project]
 name = "harmonyrl"
-version = "0.1.0"
+version = "1.0.0"
 description = "Melody harmonization with reinforcement learning"
 readme = "README.md"
 license = "MIT"
@@ -14,7 +14,7 @@ keywords = [
 	"reinforcement-learning",
 ]
 classifiers = [
-	"Development Status :: 3 - Alpha",
+	"Development Status :: 5 - Production/Stable",
 	"Intended Audience :: Science/Research",
 	"Topic :: Multimedia :: Sound/Audio",
 	"Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -37,6 +37,9 @@ dev = ["ruff>=0.17.5", "ty>=0.0.104"]
 [build-system]
 requires = ["hatchling>=1.33.0"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src"]
 
 [tool.ruff]
 line-length = 100

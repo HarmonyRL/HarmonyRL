@@ -14,7 +14,8 @@ with reinforcement learning. Pick the one whose sound you want:
 | [`CloudHolic/harmonyrl-smooth`](https://huggingface.co/CloudHolic/harmonyrl-smooth) | consonant, resolving progressions |
 | [`CloudHolic/harmonyrl-base`](https://huggingface.co/CloudHolic/harmonyrl-base) | close to the training data |
 
-Each model card describes its training and evaluation.
+Each model card describes its training and evaluation. All 3 are in the
+[HarmonyRL collection](https://huggingface.co/collections/CloudHolic/harmonyrl).
 
 ## Installation
 

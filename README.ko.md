@@ -14,7 +14,8 @@
 | [`CloudHolic/harmonyrl-smooth`](https://huggingface.co/CloudHolic/harmonyrl-smooth) | 협화적이고 해결되는 진행 |
 | [`CloudHolic/harmonyrl-base`](https://huggingface.co/CloudHolic/harmonyrl-base) | 학습 데이터에 가까움 |
 
-각 모델 카드에 학습과 평가가 설명되어 있습니다.
+각 모델 카드에 학습과 평가가 설명되어 있습니다. 전체 모델은 
+[HarmonyRL 컬렉션](https://huggingface.co/collections/CloudHolic/harmonyrl)에서 확인할 수 있습니다.
 
 ## 설치
 
